@@ -1,0 +1,4 @@
+- name: Run ACME client post-install tasks
+  listen: cert_manager_client_install_handler
+  command: "true"
+  changed_when: false

@@ -1,0 +1,5 @@
+- name: Prepare hosts in centralized setup
+  hosts: primary-host-2, secondary-host-1, secondary-host-2
+  tasks:
+    - name: Include SSH server setup tasks
+      include_tasks: ../common/tasks/run_sshd_setup.yml

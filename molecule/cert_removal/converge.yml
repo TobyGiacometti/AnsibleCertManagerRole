@@ -1,0 +1,8 @@
+- name: Converge all hosts
+  hosts: all
+  roles:
+    - role: "{{ playbook_dir|dirname|dirname }}"
+      vars:
+        cert_manager_certs:
+          - main_domain: domain1.test
+            state: revoked

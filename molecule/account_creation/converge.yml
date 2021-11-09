@@ -1,0 +1,10 @@
+- name: Converge all hosts
+  hosts: all
+  handlers:
+    - name: Run ACME client post-install tasks
+      listen: cert_manager_client_install_handler
+      include_tasks: ../common/tasks/run_client_stub_setup.yml
+  roles:
+    - role: "{{ playbook_dir|dirname|dirname }}"
+      vars:
+        cert_manager_account: create

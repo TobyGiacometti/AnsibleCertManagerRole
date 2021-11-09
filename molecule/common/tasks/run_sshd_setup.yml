@@ -1,0 +1,15 @@
+- name: Install SSH server
+  apt:
+    name: openssh-server
+    update_cache: true
+
+- name: Start SSH server
+  command: /etc/init.d/ssh start
+
+- name: Adjust hosts file
+  shell: >
+    echo
+    {{ hostvars[item]['ansible_default_ipv4']['address'] }}
+    {{ hostvars[item]['ansible_facts']['nodename'] }}
+    >>/etc/hosts
+  loop: "{{ ansible_play_hosts_all }}"

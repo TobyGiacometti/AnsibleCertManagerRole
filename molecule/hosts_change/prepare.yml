@@ -1,0 +1,14 @@
+- name: Prepare all hosts
+  hosts: all
+  tasks:
+    - name: Include SSH server setup tasks
+      include_tasks: ../common/tasks/run_sshd_setup.yml
+
+- name: Prepare initial hosts
+  hosts: primary-host, secondary-host-1
+  handlers:
+    - name: Run ACME client post-install tasks
+      listen: cert_manager_client_install_handler
+      include_tasks: ../common/tasks/run_client_stub_setup.yml
+  roles:
+    - "{{ playbook_dir|dirname|dirname }}"

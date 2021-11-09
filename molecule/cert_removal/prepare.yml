@@ -1,0 +1,20 @@
+- name: Prepare all hosts
+  hosts: all
+  handlers:
+    - name: Run ACME client post-install tasks
+      listen: cert_manager_client_install_handler
+      include_tasks: ../common/tasks/run_client_stub_setup.yml
+  roles:
+    - role: "{{ playbook_dir|dirname|dirname }}"
+      vars:
+        cert_manager_certs:
+          - main_domain: domain1.test
+            dns_provider: test
+            dns_credentials:
+              TEST_USERNAME: test
+              TEST_PASSWORD: test
+          - main_domain: domain2.test
+            dns_provider: test
+            dns_credentials:
+              TEST_USERNAME: test
+              TEST_PASSWORD: test

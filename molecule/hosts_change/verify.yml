@@ -1,0 +1,9 @@
+- name: Verify added host
+  hosts: secondary-host-2
+  vars_files:
+    - ../../vars/main.yml
+  tasks:
+    - name: Include certificate file verification tasks
+      include_tasks: ../common/tasks/verify_cert_files.yml
+      vars:
+        cert_main_domain: domain.test

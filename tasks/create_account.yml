@@ -1,0 +1,24 @@
+- name: Create ACME account
+  command:
+    cmd: >
+      sudo -u {{ cert_manager_user|quote }}
+      {{ cert_manager_client_dir|quote }}/acme.sh
+      --register-account
+    warn: false
+  become: true
+  register: cert_manager_register_account_result
+  changed_when: cert_manager_register_account_result.stdout is not search('Already registered')
+
+- name: Encode ACME account credentials
+  shell:
+    cmd: set -o pipefail && tar --create --gzip --file - ca | base64 --wrap 0
+    executable: /bin/bash
+    chdir: "{{ cert_manager_client_dir }}"
+    warn: false
+  become: true
+  register: cert_manager_account_result
+  changed_when: false
+
+- name: Display encoded ACME account credentials
+  debug:
+    msg: "{{ cert_manager_account_result.stdout }}"

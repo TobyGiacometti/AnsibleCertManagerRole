@@ -1,0 +1,27 @@
+- name: Retrieve state of {{ cert_main_domain }} cert file
+  stat:
+    path: "{{ cert_manager_cert_dir }}/{{ cert_main_domain }}/cert"
+  register: cert_file_stat_result
+
+- name: Retrieve state of {{ cert_main_domain }} key file
+  stat:
+    path: "{{ cert_manager_cert_dir }}/{{ cert_main_domain }}/key"
+  register: key_file_stat_result
+
+- name: Retrieve state of {{ cert_main_domain }} ca file
+  stat:
+    path: "{{ cert_manager_cert_dir }}/{{ cert_main_domain }}/ca"
+  register: ca_file_stat_result
+
+- name: Retrieve state of {{ cert_main_domain }} fullchain file
+  stat:
+    path: "{{ cert_manager_cert_dir }}/{{ cert_main_domain }}/fullchain"
+  register: fullchain_file_stat_result
+
+- name: Run {{ cert_main_domain }} certificate file tests
+  assert:
+    that:
+      - cert_file_stat_result.stat.exists
+      - key_file_stat_result.stat.mode == '0600' or key_file_stat_result.stat.mode == '0640'
+      - ca_file_stat_result.stat.exists
+      - fullchain_file_stat_result.stat.exists

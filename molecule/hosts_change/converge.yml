@@ -1,0 +1,4 @@
+- name: Converge all hosts
+  hosts: all
+  roles:
+    - "{{ playbook_dir|dirname|dirname }}"

@@ -1,0 +1,7 @@
+- name: Converge all hosts
+  hosts: all
+  vars_files:
+    - ../../vars/main.yml
+  tasks:
+    - name: Include ACME client management tasks
+      include_tasks: ../../tasks/manage_client.yml

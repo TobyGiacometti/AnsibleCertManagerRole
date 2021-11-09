@@ -1,0 +1,5 @@
+{% if cert_manager_primary_host is defined %}
+{% for cert_manager_host in ansible_play_hosts_all|difference([cert_manager_primary_host]) %}
+{{ hostvars[cert_manager_host]['ansible_facts']['nodename'] + ' ' }}
+{%- endfor %}
+{% endif %}

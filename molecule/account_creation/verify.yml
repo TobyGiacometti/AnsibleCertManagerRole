@@ -1,0 +1,11 @@
+- name: Verify all hosts
+  hosts: all
+  tasks:
+    - name: Retrieve state of ACME client run
+      command: cat /tmp/acme.sh.log
+      register: client_log_cat_result
+
+    - name: Run tests
+      assert:
+        that:
+          - client_log_cat_result.stdout is search('--register-account$', multiline=True)

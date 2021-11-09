@@ -1,0 +1,97 @@
+- name: Verify primary hosts
+  hosts: primary-host-1, primary-host-2
+  vars_files:
+    - ../../vars/main.yml
+  tasks:
+    - name: Retrieve state of ACME client
+      command:
+        cmd: >
+          sudo -u {{ cert_manager_user|quote }}
+          {{ cert_manager_client_dir|quote }}/acme.sh
+          --version
+        warn: false
+      register: client_version_result
+
+    - name: Retrieve state of ACME account credentials file
+      stat:
+        path: "{{ cert_manager_state_dir }}/account"
+      register: account_file_stat_result
+
+    - name: Retrieve state of ACME account
+      stat:
+        path: "{{ cert_manager_client_dir }}/ca/acme-v02.api.letsencrypt.org/account.json"
+      register: account_stat_result
+
+    - name: Retrieve state of certificate issuance script
+      stat:
+        path: "{{ cert_manager_bin_dir }}/issue"
+      register: issue_script_stat_result
+
+    - name: Retrieve state of ACME client run
+      command: cat /tmp/acme.sh.log
+      register: client_log_cat_result
+
+    - name: Retrieve state of cron jobs
+      command: crontab -u {{ cert_manager_user|quote }} -l
+      register: crontab_result
+
+    - name: Run tests
+      assert:
+        that:
+          - client_version_result.stdout is search('v' + cert_manager_client_version|regex_escape)
+          - account_file_stat_result.stat.mode == '0600'
+          - account_stat_result.stat.checksum == 'dfd9f65d4827583d1882f132240d242594618f06'
+          - issue_script_stat_result.stat.mode == '0700'
+          - client_log_cat_result.stdout is search('--update-account --accountemail user@domain.test$', multiline=True)
+          - client_log_cat_result.stdout is search('--issue --preferred-chain ISRG Root X1 --dns dns_test1 --domain domain1.test --challenge-alias domain1.test.acme.domain1.test --domain \*.domain1.test --challenge-alias domain1.test.acme.domain1.test --log$', multiline=True)
+          - client_log_cat_result.stdout is search('TEST_USERNAME=test1')
+          - client_log_cat_result.stdout is search('TEST_PASSWORD=test1')
+          - client_log_cat_result.stdout is search('--issue --preferred-chain ISRG Root X1 --dns dns_test2 --domain domain2.test --log$', multiline=True)
+          - client_log_cat_result.stdout is search('TEST_USERNAME=test2')
+          - client_log_cat_result.stdout is search('TEST_PASSWORD=test2')
+          - crontab_result.stdout is not search(cert_manager_client_dir|regex_escape)
+          - crontab_result.stdout is search('cert_manager_renew')
+
+- name: Verify secondary hosts
+  hosts: secondary-host-1, secondary-host-2
+  vars_files:
+    - ../../vars/main.yml
+  tasks:
+    - name: Retrieve state of ACME client installation directory
+      stat:
+        path: "{{ cert_manager_client_dir }}"
+      register: client_dir_stat_result
+
+    - name: Retrieve state of directory for state data
+      stat:
+        path: "{{ cert_manager_state_dir }}"
+      register: state_dir_stat_result
+
+    - name: Retrieve state of directory for configuration data
+      stat:
+        path: "{{ cert_manager_config_dir }}"
+      register: config_dir_stat_result
+
+    - name: Retrieve state of directory for executable files
+      stat:
+        path: "{{ cert_manager_bin_dir }}"
+      register: bin_dir_stat_result
+
+    - name: Run tests
+      assert:
+        that:
+          - not client_dir_stat_result.stat.exists
+          - not state_dir_stat_result.stat.exists
+          - not config_dir_stat_result.stat.exists
+          - not bin_dir_stat_result.stat.exists
+
+- name: Verify all hosts
+  hosts: all
+  vars_files:
+    - ../../vars/main.yml
+  tasks:
+    - name: Include certificate file verification tasks
+      include_tasks: ../common/tasks/verify_cert_files.yml
+      loop: "{{ ['domain1.test', 'domain2.test'] }}"
+      loop_control:
+        loop_var: cert_main_domain

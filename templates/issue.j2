@@ -1,0 +1,67 @@
+#!/bin/bash
+
+set -o errtrace
+set -o pipefail
+
+{% for cert_manager_cert in cert_manager_certs %}
+{% if cert_manager_cert.state is undefined or cert_manager_cert.state == 'issued' %}
+{% set cert_manager_cert_dir = cert_manager_cert_dir + '/' + cert_manager_cert.main_domain %}
+{% set cert_manager_cert_file = cert_manager_cert_dir + '/cert' %}
+{% set cert_manager_key_file = cert_manager_cert_dir + '/key' %}
+{% set cert_manager_ca_file = cert_manager_cert_dir + '/ca' %}
+{% set cert_manager_fullchain_file = cert_manager_cert_dir + '/fullchain' %}
+(
+{% for cert_manager_dns_credential_key, cert_manager_dns_credential_value in cert_manager_cert.dns_credentials.items() %}
+	export {{ cert_manager_dns_credential_key|quote }}={{ cert_manager_dns_credential_value|quote }} || exit
+{% endfor %}
+
+	{{ cert_manager_client_dir|quote }}/acme.sh --issue \
+		--preferred-chain "ISRG Root X1" \
+		--dns dns_{{ cert_manager_cert.dns_provider|quote }} \
+{% for cert_manager_cert_domain in [cert_manager_cert.main_domain] + cert_manager_cert.alt_domains|default([]) %}
+		--domain {{ cert_manager_cert_domain|quote }} \
+{% if cert_manager_cert.verification_domain is defined %}
+		--challenge-alias {{ cert_manager_cert_domain|replace('*.', '')|quote }}.{{ cert_manager_cert.verification_domain|quote }} \
+{% endif %}
+{% endfor %}
+		--log && changed=1 || { [[ $? -eq 2 ]] || exit; } # Exit status 2: renewal skipped
+
+	if [[ $changed -eq 1 ]]; then
+		{{ cert_manager_client_dir|quote }}/acme.sh --install-cert \
+			--domain {{ cert_manager_cert.main_domain|quote }} \
+			--cert-file {{ cert_manager_cert_file|quote }} \
+			--key-file {{ cert_manager_key_file|quote }} \
+			--ca-file {{ cert_manager_ca_file|quote }} \
+			--fullchain-file {{ cert_manager_fullchain_file|quote }} || exit
+	fi
+{% if cert_manager_primary_host is defined and inventory_hostname == cert_manager_primary_host %}
+
+	if [[ $changed -eq 1 || $1 = deploy ]]; then
+		export DEPLOY_SSH_USER={{ cert_manager_user|quote }}
+		export DEPLOY_SSH_CMD="ssh -p {{ cert_manager_ssh_port_result.stdout|regex_replace('[^0-9]', '') }} -o StrictHostKeyChecking=accept-new -T"
+		export DEPLOY_SSH_SERVER=$(<{{ cert_manager_secondary_hosts_file_result.dest|quote }})
+		export DEPLOY_SSH_KEYFILE={{ cert_manager_key_file|quote }}
+		export DEPLOY_SSH_CERTFILE={{ cert_manager_cert_file|quote }}
+		export DEPLOY_SSH_CAFILE={{ cert_manager_ca_file|quote }}
+		export DEPLOY_SSH_FULLCHAIN={{ cert_manager_fullchain_file|quote }}
+		export DEPLOY_SSH_REMOTE_CMD="chmod o-rwx {{ cert_manager_key_file|quote }}"
+		export DEPLOY_SSH_BACKUP=no
+
+		{{ cert_manager_client_dir|quote }}/acme.sh --deploy \
+			--deploy-hook ssh \
+			--domain {{ cert_manager_cert.main_domain|quote }} && changed=1 || exit
+	fi
+{% endif %}
+
+	[[ $changed -eq 1 ]] || exit 64
+) && changed=1 || { [[ $? -eq 64 ]] || error=1; }
+
+{% endif %}
+{% endfor %}
+if [[ $error -eq 1 ]]; then
+	exit 1
+elif [[ $changed -eq 1 ]]; then
+	exit
+else
+	exit 64
+fi

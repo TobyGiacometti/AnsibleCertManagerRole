@@ -1,0 +1,101 @@
+- name: Create ACME client user
+  user:
+    name: "{{ cert_manager_user }}"
+    password: "*"
+    generate_ssh_key: >
+      {{
+      cert_manager_primary_host is defined and
+      inventory_hostname == cert_manager_primary_host
+      }}
+    ssh_key_type: ed25519
+  become: true
+  register: cert_manager_user_result
+
+- name: Run ACME client setup for primary hosts
+  block:
+    - name: Install packages for ACME client
+      apt:
+        name:
+          - unzip
+          - cron
+          - wget
+        update_cache: true
+      become: true
+
+    - name: Retrieve ACME client installation directory information
+      stat:
+        path: "{{ cert_manager_client_dir }}"
+      become: true
+      register: cert_manager_client_dir_stat_result
+
+    - name: Download and install ACME client
+      block:
+        - name: Create temporary directory for ACME client download
+          tempfile:
+            state: directory
+          become: true
+          register: cert_manager_client_download_tempfile_result
+
+        - name: Adjust ACME client download directory permissions
+          file:
+            path: "{{ cert_manager_client_download_tempfile_result.path }}"
+            mode: 0755
+          become: true
+
+        - name: Download ACME client
+          unarchive:
+            src: https://github.com/acmesh-official/acme.sh/archive/{{ cert_manager_client_version }}.zip
+            remote_src: true
+            dest: "{{ cert_manager_client_download_tempfile_result.path }}"
+          become: true
+
+        - name: Install ACME client
+          shell:
+            cmd: >
+              cd {{ cert_manager_client_download_tempfile_result.path|quote }}/* &&
+              sudo -u {{ cert_manager_user|quote }} ./acme.sh
+              --install --noprofile --nocron
+            warn: false
+          become: true
+          notify: cert_manager_client_install_handler
+      when: not cert_manager_client_dir_stat_result.stat.exists
+
+    - name: Update ACME client if necessary
+      block:
+        - name: Retrieve ACME client version
+          command:
+            cmd: >
+              sudo -u {{ cert_manager_user|quote }}
+              {{ cert_manager_client_dir|quote }}/acme.sh
+              --version
+            warn: false
+          become: true
+          register: cert_manager_client_version_result
+          changed_when: false
+
+        - name: Update ACME client
+          command:
+            cmd: >
+              sudo -u {{ cert_manager_user|quote }}
+              {{ cert_manager_client_dir|quote }}/acme.sh
+              --upgrade --auto-upgrade 0 --branch {{ cert_manager_client_version|quote }}
+            warn: false
+          become: true
+          when: cert_manager_client_version_result.stdout is not search('v' + cert_manager_client_version|regex_escape)
+      when: cert_manager_client_dir_stat_result.stat.exists
+
+    - name: Manage SSH authorized keys for secondary hosts
+      authorized_key:
+        user: "{{ cert_manager_user }}"
+        exclusive: true
+        key: "{{ cert_manager_user_result.ssh_public_key }}"
+      become: true
+      loop: "{{ ansible_play_hosts_all|difference([cert_manager_primary_host]) }}"
+      loop_control:
+        loop_var: cert_manager_secondary_host
+      delegate_to: "{{ cert_manager_secondary_host }}"
+      when: cert_manager_primary_host is defined
+  when: cert_manager_primary_host is undefined or inventory_hostname == cert_manager_primary_host
+
+- name: Flush Ansible handlers
+  meta: flush_handlers

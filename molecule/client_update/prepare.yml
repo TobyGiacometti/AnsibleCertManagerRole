@@ -1,0 +1,14 @@
+- name: Prepare all hosts
+  hosts: all
+  vars_files:
+    - ../../vars/main.yml
+  handlers:
+    - name: Run ACME client post-install tasks
+      listen: cert_manager_client_install_handler
+      command: "true"
+      changed_when: false
+  tasks:
+    - name: Include ACME client management tasks
+      include_tasks: ../../tasks/manage_client.yml
+      vars:
+        cert_manager_client_version: 2.8.7

@@ -1,0 +1,13 @@
+- name: Converge all hosts
+  hosts: all
+  roles:
+    - role: "{{ playbook_dir|dirname|dirname }}"
+      vars:
+        cert_manager_certs:
+          - main_domain: domain.test
+            alt_domains:
+              - sub.domain.test
+            dns_provider: test
+            dns_credentials:
+              TEST_USERNAME: test
+              TEST_PASSWORD: test

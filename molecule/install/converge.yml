@@ -1,0 +1,19 @@
+- name: Converge host in decentralized setup
+  hosts: primary-host-1
+  handlers:
+    - name: Run ACME client post-install tasks
+      listen: cert_manager_client_install_handler
+      include_tasks: ../common/tasks/run_client_stub_setup.yml
+  roles:
+    - "{{ playbook_dir|dirname|dirname }}"
+
+- name: Converge hosts in centralized setup
+  hosts: primary-host-2, secondary-host-1, secondary-host-2
+  handlers:
+    - name: Run ACME client post-install tasks
+      listen: cert_manager_client_install_handler
+      include_tasks: ../common/tasks/run_client_stub_setup.yml
+  roles:
+    - role: "{{ playbook_dir|dirname|dirname }}"
+      vars:
+        cert_manager_primary_host: primary-host-2

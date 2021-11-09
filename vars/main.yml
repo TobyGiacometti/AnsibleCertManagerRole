@@ -1,0 +1,7 @@
+cert_manager_user: cert-manager
+cert_manager_client_dir: /home/{{ cert_manager_user }}/.acme.sh
+cert_manager_client_version: 2.9.0
+cert_manager_cert_dir: /etc/certs
+cert_manager_config_dir: /home/{{ cert_manager_user }}/.config
+cert_manager_state_dir: /home/{{ cert_manager_user }}/.local/state
+cert_manager_bin_dir: /home/{{ cert_manager_user }}/.local/bin

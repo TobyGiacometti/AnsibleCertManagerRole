@@ -1,0 +1,40 @@
+- name: Verify all hosts
+  hosts: all
+  vars_files:
+    - ../../vars/main.yml
+  tasks:
+    - name: Retrieve state of domain1.test certificate directory
+      stat:
+        path: "{{ cert_manager_cert_dir }}/domain1.test"
+      register: cert_dir_1_stat_result
+
+    - name: Retrieve state of domain2.test certificate directory
+      stat:
+        path: "{{ cert_manager_cert_dir }}/domain2.test"
+      register: cert_dir_2_stat_result
+
+    - name: Retrieve state of domain1.test conf file
+      stat:
+        path: "{{ cert_manager_client_dir }}/domain1.test/domain1.test.conf"
+      become: true
+      register: conf_file_1_stat_result
+
+    - name: Retrieve state of domain2.test conf file
+      stat:
+        path: "{{ cert_manager_client_dir }}/domain2.test/domain2.test.conf"
+      become: true
+      register: conf_file_2_stat_result
+
+    - name: Retrieve state of ACME client run
+      command: cat /tmp/acme.sh.log
+      register: client_log_cat_result
+
+    - name: Run tests
+      assert:
+        that:
+          - not cert_dir_1_stat_result.stat.exists
+          - not cert_dir_2_stat_result.stat.exists
+          - not conf_file_1_stat_result.stat.exists
+          - not conf_file_2_stat_result.stat.exists
+          - client_log_cat_result.stdout is search('--revoke --domain domain1.test$', multiline=True)
+          - client_log_cat_result.stdout is not search('--revoke --domain domain2.test$', multiline=True)

@@ -1,0 +1,36 @@
+- name: Create directory for certificates
+  file:
+    state: directory
+    path: "{{ cert_manager_cert_dir }}"
+    mode: 0755
+  become: true
+
+- name: Create directory for configuration data
+  file:
+    state: directory
+    path: "{{ cert_manager_config_dir }}"
+    mode: 0755
+    owner: "{{ cert_manager_user }}"
+    group: "{{ cert_manager_user }}"
+  become: true
+  when: cert_manager_primary_host is undefined or inventory_hostname == cert_manager_primary_host
+
+- name: Create directory for state data
+  file:
+    state: directory
+    path: "{{ cert_manager_state_dir }}"
+    mode: 0755
+    owner: "{{ cert_manager_user }}"
+    group: "{{ cert_manager_user }}"
+  become: true
+  when: cert_manager_primary_host is undefined or inventory_hostname == cert_manager_primary_host
+
+- name: Create directory for executable files
+  file:
+    state: directory
+    path: "{{ cert_manager_bin_dir }}"
+    mode: 0755
+    owner: "{{ cert_manager_user }}"
+    group: "{{ cert_manager_user }}"
+  become: true
+  when: cert_manager_primary_host is undefined or inventory_hostname == cert_manager_primary_host

@@ -1,0 +1,17 @@
+- name: Copy ACME client executable
+  copy:
+    remote_src: true
+    src: "{{ cert_manager_client_dir }}/acme.sh"
+    dest: "{{ cert_manager_client_dir }}/acme.sh.orig"
+    owner: "{{ cert_manager_user }}"
+    group: "{{ cert_manager_user }}"
+    mode: preserve
+    force: false
+
+- name: Install ACME client stub
+  copy:
+    src: ../common/files/acme.sh
+    dest: "{{ cert_manager_client_dir }}/"
+    owner: "{{ cert_manager_user }}"
+    group: "{{ cert_manager_user }}"
+    mode: 0755

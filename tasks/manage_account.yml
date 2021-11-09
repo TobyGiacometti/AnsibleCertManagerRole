@@ -1,0 +1,45 @@
+- name: Manage ACME account
+  block:
+    - name: Manage ACME account credentials file
+      template:
+        src: account.j2
+        dest: "{{ cert_manager_state_dir }}/account"
+        mode: 0600
+        owner: "{{ cert_manager_user }}"
+        group: "{{ cert_manager_user }}"
+      become: true
+      register: cert_manager_account_file_result
+      no_log: true
+
+    - name: Set ACME account  # noqa 302
+      shell:
+        cmd: >
+          set -o pipefail &&
+          rm --recursive --force ca &&
+          cat {{ cert_manager_account_file_result.dest|quote }} |
+          base64 --decode |
+          sudo -u {{ cert_manager_user|quote }}
+          tar --extract --gzip --file - --preserve-permissions
+        executable: /bin/bash
+        chdir: "{{ cert_manager_client_dir }}"
+        warn: false
+      become: true
+      when: cert_manager_account_file_result.changed
+
+    - name: Check whether ACME email is set
+      shell: grep --quiet {{ cert_manager_email|quote }} {{ cert_manager_client_dir|quote }}/ca/*/*.*
+      become: true
+      register: cert_manager_email_grep_result
+      changed_when: false
+      failed_when: cert_manager_email_grep_result.rc not in [0, 1]
+
+    - name: Update ACME email
+      command:
+        cmd: >
+          sudo -u {{ cert_manager_user|quote }}
+          {{ cert_manager_client_dir|quote }}/acme.sh
+          --update-account --accountemail {{ cert_manager_email|quote }}
+        warn: false
+      become: true
+      when: cert_manager_email_grep_result.rc == 1
+  when: cert_manager_primary_host is undefined or inventory_hostname == cert_manager_primary_host

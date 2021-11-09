@@ -1,0 +1,14 @@
+driver:
+  name: docker
+platforms:
+  - name: host
+    image: geerlingguy/docker-debian10-ansible:latest
+    pre_build_image: true
+scenario:
+  test_sequence:
+    - destroy
+    - syntax
+    - create
+    - converge
+    - verify
+    - destroy

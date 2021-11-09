@@ -1,0 +1,28 @@
+provisioner:
+  name: ansible
+  inventory:
+    group_vars:
+      all:
+        cert_manager_primary_host: primary-host
+        cert_manager_account: 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
+        cert_manager_email: user@domain.test
+        cert_manager_certs:
+          - main_domain: domain.test
+            dns_provider: test
+            dns_credentials:
+              TEST_USERNAME: test
+              TEST_PASSWORD: test
+driver:
+  name: docker
+platforms:
+  - name: primary-host
+    image: geerlingguy/docker-debian10-ansible:latest
+    pre_build_image: true
+
+  - name: secondary-host-1
+    image: geerlingguy/docker-debian10-ansible:latest
+    pre_build_image: true
+
+  - name: secondary-host-2
+    image: geerlingguy/docker-debian10-ansible:latest
+    pre_build_image: true

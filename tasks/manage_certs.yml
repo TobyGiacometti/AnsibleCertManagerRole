@@ -1,0 +1,126 @@
+- name: Retrieve certificate main domains
+  set_fact:
+    cert_manager_cert_main_domains: "{{ cert_manager_certs|map(attribute='main_domain')|list }}"
+  no_log: true
+  run_once: true
+
+- name: Ensure that certificate main domains are unique
+  fail:
+    msg: Certificate main domains must be unique
+  run_once: true
+  when: cert_manager_cert_main_domains|count != cert_manager_cert_main_domains|unique|count
+
+- name: Retrieve certificate directories
+  find:
+    file_type: directory
+    paths:
+      - "{{ cert_manager_cert_dir }}"
+  become: true
+  register: cert_manager_cert_dir_find_result
+
+- name: Define certificates that need to be removed
+  set_fact:
+    cert_manager_certs: >
+      {{
+      cert_manager_certs +
+      [{'main_domain': cert_manager_cert_main_domain, 'state': 'removed'}]
+      }}
+  loop: >
+    {{
+    cert_manager_cert_dir_find_result.files |
+    map(attribute='path') |
+    map('basename') |
+    list
+    }}
+  loop_control:
+    loop_var: cert_manager_cert_main_domain
+  no_log: true
+  when: cert_manager_cert_main_domain not in cert_manager_cert_main_domains
+
+- name: Retrieve SSH port
+  shell:
+    cmd: set -o pipefail && sshd -T | grep "^port " | cut -d " " -f 2
+    executable: /bin/bash
+  become: true
+  register: cert_manager_ssh_port_result
+  changed_when: false
+  when:
+    - cert_manager_primary_host is defined
+    - inventory_hostname == cert_manager_primary_host
+
+- name: Manage certificate directories
+  file:
+    state: "{% if cert_manager_cert.state is undefined or cert_manager_cert.state == 'issued' %}\
+      directory\
+      {% elif cert_manager_cert.state in ['revoked', 'removed'] %}\
+      absent\
+      {% endif %}"
+    path: "{{ cert_manager_cert_dir }}/{{ cert_manager_cert.main_domain }}"
+    group: "{{ cert_manager_user }}"
+    mode: 0775
+  become: true
+  loop: "{{ cert_manager_certs }}"
+  loop_control:
+    loop_var: cert_manager_cert
+  no_log: true
+
+- name: Manage secondary host listing file
+  template:
+    src: secondary-hosts.j2
+    dest: "{{ cert_manager_config_dir }}/secondary-hosts"
+    mode: 0644
+    owner: "{{ cert_manager_user }}"
+    group: "{{ cert_manager_user }}"
+  become: true
+  register: cert_manager_secondary_hosts_file_result
+  when:
+    - cert_manager_primary_host is defined
+    - inventory_hostname == cert_manager_primary_host
+
+- name: Manage certificate issuance script
+  template:
+    src: issue.j2
+    dest: "{{ cert_manager_bin_dir }}/issue"
+    mode: 0700
+    owner: "{{ cert_manager_user }}"
+    group: "{{ cert_manager_user }}"
+  become: true
+  register: cert_manager_issue_script_result
+  when: cert_manager_primary_host is undefined or inventory_hostname == cert_manager_primary_host
+
+- name: Include certificate removal tasks
+  include_tasks: remove_cert.yml
+  vars:
+    cert_manager_cert_main_domain: "{{ cert_manager_cert.main_domain }}"
+    cert_manager_revoke: "{{ cert_manager_cert.state == 'revoked' }}"
+  loop: "{{ cert_manager_certs }}"
+  loop_control:
+    loop_var: cert_manager_cert
+  no_log: true
+  when:
+    - cert_manager_primary_host is undefined or inventory_hostname == cert_manager_primary_host
+    - cert_manager_cert.state is defined
+    - cert_manager_cert.state in ['revoked', 'removed']
+
+- name: Issue and deploy certificates
+  command:
+    cmd: >
+      sudo -u {{ cert_manager_user|quote }}
+      {{ cert_manager_issue_script_result.dest }}
+      {% if cert_manager_secondary_hosts_file_result.changed|default(false) %}deploy{% endif %}
+    warn: false
+  become: true
+  register: cert_manager_issue_result
+  changed_when: cert_manager_issue_result.rc != 64
+  failed_when: cert_manager_issue_result.rc not in [0, 64]
+  when: cert_manager_primary_host is undefined or inventory_hostname == cert_manager_primary_host
+
+- name: Manage certificate renewal cron job
+  cron:
+    job: "{{ cert_manager_issue_script_result.dest }} >/dev/null || test $? -eq 64"
+    name: cert_manager_renew
+    hour: "0"
+    minute: "0"
+    user: "{{ cert_manager_user }}"
+  become: true
+  when: cert_manager_primary_host is undefined or inventory_hostname == cert_manager_primary_host
